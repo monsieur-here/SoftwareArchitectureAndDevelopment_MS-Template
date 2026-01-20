@@ -15,6 +15,7 @@ dotenv.config();
 
 // Student Login
 router.post("/student", async (req, res) => {
+
   const { email, password } = req.body;
 
   try {
@@ -23,6 +24,36 @@ router.post("/student", async (req, res) => {
         .status(400)
         .json({ message: "Email and password are required" });
     }
+
+    // Fetch the list of students
+    const students = await fetchStudents();
+    const student = students.find((s) => s.email === email);
+
+    // Assignment 1 - Verify if the student exists
+    // If not throw the correct error message
+    // ----
+    // Also check if the password matches. Hint: Use bcrypt.compare()
+    // If not, throw the correct error message
+    // ----
+
+    if(!student){
+      return  res.status(401).json({ message: "Invalid student credentials" });
+    }
+
+    const isValidPassword = await bcrypt.compare(password, student.password);
+
+    if(!isValidPassword) {
+      return res.status(401).json({ message: "Invalid password" });
+    }
+
+    // This is a payload
+    const token = generateJWTWithPrivateKey({
+    id: student.student_id,
+    roles: [ROLES.STUDENT]
+   });
+
+   res.status(200).json({accessToken: token})
+
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Server error" });
@@ -39,6 +70,27 @@ router.post("/professor", async (req, res) => {
         .status(400)
         .json({ message: "Email and password are required" });
     }
+    const professor = await Professor.findOne({ email: req.body.email });
+
+    if (!professor) {
+      return res.status(400).json({ message: "Invalid professor credentials" });
+    }
+
+    // Compare the raw password to the stored hash
+    const isMatch = await bcrypt.compare(req.body.password, professor.password);
+
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid Credentials" });
+    }
+    res.status(200).json({ message: "Professor logged in successfully" });
+
+    // This is a payload
+    const token = generateJWTWithPrivateKey({
+      id: professor.professor_id,
+      roles: [ROLES.PROFESSOR],
+    });
+    res.status(200).json({ accessToken: token });
+
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Server error" });

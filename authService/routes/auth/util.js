@@ -31,7 +31,13 @@ const customHeaders = {
 };
 
 // Generate a JWT using the private key
-function generateJWTWithPrivateKey(payload) {}
+function generateJWTWithPrivateKey(payload) {
+  const token = jwt.sign(payload, privateKey, {
+    algorithm: "RS256",
+    header: customHeaders,
+    expiresIn: "6h",
+  });
+}
 
 // JWT verification function
 function verifyJWTWithPublicKey(token) {}
