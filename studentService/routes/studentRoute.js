@@ -58,7 +58,10 @@ router.get("/", async (req, res) => {
     }
 });
 
-router.get("/:student_id", async (req, res) => {
+
+
+router.get("/:student_id", verifyRole([ROLES.STUDENT, ROLES.PROFESSOR]),
+  restrictStudentToOwnData, async (req, res) => {
     try{
         
         const student = await Student.findOne({student_id: req.params.student_id});

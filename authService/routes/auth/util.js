@@ -32,7 +32,7 @@ const customHeaders = {
 
 // Generate a JWT using the private key
 function generateJWTWithPrivateKey(payload) {
-  const token = jwt.sign(payload, privateKey, {
+  return jwt.sign(payload, privateKey, {
     algorithm: "RS256",
     header: customHeaders,
     expiresIn: "6h",
@@ -40,7 +40,14 @@ function generateJWTWithPrivateKey(payload) {
 }
 
 // JWT verification function
-function verifyJWTWithPublicKey(token) {}
+function verifyJWTWithPublicKey(token) {
+  try{
+    return jwt.verify(token, publicKey, { algorithms: ["RS256"] });
+  } catch (error) {
+    console.error("JWT verification failed:", error);
+    throw error;
+  }
+}
 
 async function fetchStudents() {
   const response = await axios.get(STUDENT_SERVICE);

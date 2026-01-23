@@ -2,6 +2,12 @@ const express = require("express");
 const Professor = require("../models/professor");
 const { run } = require("svelte/legacy");
 
+const { verifyRole } = require("../../studentService/routes/auth/util");
+const { ROLES } = require("../../consts");
+
+const axios = require("axios");
+const bcrypt = require("bcryptjs");
+
 const router = express.Router();
 
 // Create a new professor
@@ -47,6 +53,26 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Get the student details
+router.get("/studentProfiles", verifyRole([ROLES.PROFESSOR]), async(req, res) => {
+  try {
+    const authToken = req.headers.authorization;
+
+    const response = await axios.get("http://localhost:5003/api/students", 
+      { headers: { Authorization: authToken } });
+
+      res.json(
+        {
+          message: "Student profiles fetched successfully",
+          allStudents: response.data,
+        }
+      )
+  } catch (error) {
+    console.error("Error fetching student profiles:", error);
+    res.status(500).json({ message: "Unable to fetch student profiles" });
+  }
+})
+
 // Get a specific professor by ID
 router.get("/:professor_id", async (req, res) => {
   try {
@@ -63,6 +89,23 @@ router.get("/:professor_id", async (req, res) => {
     //   return res.status(400).json({ message: "Invalid professor ID format" });
     // }
     res.status(500).json({ message: "Server Error", error: error.message });
+  }
+});
+
+router.get("/studentProfiles/:student_id", verifyRole([ROLES.PROFESSOR]), async(req, res) => {
+  try {
+    const authToken = req.headers.authorization;
+
+    const response = await axios.get(`http://localhost:5003/api/students/${req.params.student_id}`, 
+      { headers: { Authorization: authToken } });
+
+      res.json({
+        message: "Student data fetched successfully",
+        studentData: response.data
+      })
+  }catch (error) {
+    console.error("Error fetching student data:", error);
+    res.status(500).json({ message: "Unable to fetch student data" });
   }
 });
 

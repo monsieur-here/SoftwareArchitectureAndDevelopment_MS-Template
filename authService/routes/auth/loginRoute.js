@@ -70,19 +70,20 @@ router.post("/professor", async (req, res) => {
         .status(400)
         .json({ message: "Email and password are required" });
     }
-    const professor = await Professor.findOne({ email: req.body.email });
+    
+    const professors = await fetchProfessors();
+    const professor = professors.find((p) => p.email === email);
 
     if (!professor) {
       return res.status(400).json({ message: "Invalid professor credentials" });
     }
 
     // Compare the raw password to the stored hash
-    const isMatch = await bcrypt.compare(req.body.password, professor.password);
+    const isValidPassword = await bcrypt.compare(req.body.password, professor.password);
 
-    if (!isMatch) {
+    if (!isValidPassword) {
       return res.status(400).json({ message: "Invalid Credentials" });
     }
-    res.status(200).json({ message: "Professor logged in successfully" });
 
     // This is a payload
     const token = generateJWTWithPrivateKey({

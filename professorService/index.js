@@ -2,7 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 
-const professorRoute = require("./routes/professorRoute");
+const professorRoutes = require("./routes/professorRoute");
 
 dotenv.config();
 
@@ -15,7 +15,7 @@ connectDB();
 // Middleware
 app.use(express.json());
 
-app.use("/api/professors", professorRoute);
+app.use("/api/professors", professorRoutes);
 
 // Start server
 const PORT = process.env.PORT || 5002;

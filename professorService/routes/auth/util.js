@@ -94,7 +94,7 @@ function verifyRole(requiredRoles) {
 function restrictProfessorToOwnData(req, res, next) {
   if (
     req.user.roles.includes(ROLES.PROFESSOR) &&
-    req.user.id !== req.params.id
+    req.user.id !== req.params.professor_id
   ) {
     return res.status(403).json({
       message: "Access forbidden: You can only access your own data",
