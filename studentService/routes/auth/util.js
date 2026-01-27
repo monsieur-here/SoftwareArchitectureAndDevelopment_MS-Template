@@ -1,24 +1,29 @@
 const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
 const axios = require("axios");
-const { ROLES } = require("../../../consts");
-const fs = require("fs"); 
-const path = require("path");
+
+const { ROLES, AUTH_SERVICE } = require("../../../consts");
 
 dotenv.config();
 
-const jku = process.env.JWKS_URL || "http://localhost:5001/.well-known/jwks.json";
+const trustedDomain = [AUTH_SERVICE.split("api")[0]];
 
-async function fetchJWKS(url) {
-  try {
-    const response = await axios.get(url); // Calls http://localhost:5000/.well-known/jwks.json
-    return response.data.keys;
-  } catch (error) {
-    console.error("Error fetching JWKS:", error.message);
-    throw new Error("Could not fetch public keys from Auth Service");
-  }
+/**
+ * Fetch the JWKS from a given URI.
+ * @param {string} jku - The JWKS URI from the JWT header.
+ * @returns {Promise<Array>} - A promise that resolves to the JWKS keys.
+ */
+async function fetchJWKS(jku) {
+  const response = await axios.get(jku);
+  return response.data.keys;
 }
 
+/**
+ * Get the public key from JWKS.
+ * @param {string} kid - The key ID from the JWT header.
+ * @param {Array} keys - The JWKS keys.
+ * @returns {string} - The corresponding public key in PEM format.
+ */
 function getPublicKeyFromJWKS(kid, keys) {
   const key = keys.find((k) => k.kid === kid);
 
@@ -29,75 +34,99 @@ function getPublicKeyFromJWKS(kid, keys) {
   return `-----BEGIN PUBLIC KEY-----\n${key.n}\n-----END PUBLIC KEY-----`;
 }
 
+/**
+ * Verify a JWT token using the JWKS URI in the `jku` header.
+ * @param {string} token - The JWT token to verify.
+ * @returns {Promise<object>} - A promise that resolves to the decoded JWT payload.
+ */
 async function verifyJWTWithJWKS(token) {
-  try {
-    const decodedHeader = jwt.decode(token, { complete: true });
-    if (!decodedHeader) {
-      return null;
-    }
+  const decodedHeader = jwt.decode(token, { complete: true }).header;
+  const { kid, alg, jku } = decodedHeader;
 
-    const { kid } = decodedHeader.header;
-
-    const keys = await fetchJWKS(jku);
-
-    const publicKey = getPublicKeyFromJWKS(kid, keys);
-
-    const decoded = jwt.verify(token, publicKey, { algorithms: ["RS256"] });
-    return decoded;
-
-  } catch (error) {
-    console.error("DEBUG ERROR:", error.message);
-    return null;
+  if (!kid || !jku) {
+    throw new Error("JWT header is missing 'kid' or 'jku'");
   }
+
+  //   if (!trustedDomain.includes(jku.split(".well")[0])) {
+  //     throw new Error("Domain not supported");
+  //   }
+
+  if (alg !== "RS256") {
+    throw new Error(`Unsupported algorithm: ${alg}`);
+  }
+
+  const keys = await fetchJWKS(jku);
+  const publicKey = getPublicKeyFromJWKS(kid, keys);
+
+  return jwt.verify(token, publicKey, { algorithms: ["RS256"] });
 }
 
 // Role-based Access Control Middleware
 function verifyRole(requiredRoles) {
   return async (req, res, next) => {
+    const token =
+      req.headers.authorization && req.headers.authorization.split(" ")[1]; // Extract token from 'Bearer <token>'
+
+    if (!token) {
+      return res
+        .status(401)
+        .json({ message: "Authorization token is missing" });
+    }
+
     try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader) return res.status(401).json({ message: "No token provided" });
+      // Step 1: Verify the JWT token using JWKS
+      const decoded = await verifyJWTWithJWKS(token); // Decode the token and get the payload
+      req.user = decoded; // Attach the decoded payload (user data) to the request object
 
-      const token = authHeader.split(" ")[1];
-      const decoded = await verifyJWTWithJWKS(token); 
-
-      // FIX: Check if 'decoded' exists before reading '.roles'
-      if (!decoded || !decoded.roles) {
-        return res.status(403).json({ message: "Invalid token: Roles not found" });
-      }
-
-      const hasRole = requiredRoles.some(role => decoded.roles.includes(role));
-      if (!hasRole) {
-        return res.status(403).json({ message: "Access denied: Insufficient permissions" });
-      }
-      if(decoded){
-        req.user = decoded; 
-        next();
+      // Step 2: Check if the user has any of the required roles
+      // The some() method of Array instances tests whether at least one element in the array passes the test implemented by the provided function.
+      const userRoles = req.user.roles || [];
+      const hasRequiredRole = userRoles.some((role) =>
+        requiredRoles.includes(role)
+      );
+      if (hasRequiredRole) {
+        return next(); // User has at least one of the required roles, so proceed
+      } else {
+        return res
+          .status(403)
+          .json({ message: "Access forbidden: Insufficient role" });
       }
     } catch (error) {
-      res.status(500).json({ message: "Internal Server Error" });
+      console.error(error);
+      return res
+        .status(403)
+        .json({ message: "Invalid or expired token", error: error.message });
     }
   };
 }
 
 function restrictStudentToOwnData(req, res, next) {
+    // 1. Safety Check: If verifyRole didn't find a user, stop here. [cite: 58]
+    if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+    }
 
-  if (!req.user || !req.user.roles) {
-    return res.status(401).json({ message: "Authentication required" });
-  }
+    // 2. Professor/Admin Override: They can see anyone. 
+    if (req.user.roles.includes(ROLES.AUTH_SERVICE) && req.user.roles.includes(ROLES.ADMIN)) {
+        return next();
+    }
 
-  if (req.user.roles.includes(ROLES.PROFESSOR)) {
-    return next();
-  }
+    // 3. The Constraint: Compare Token ID to URL ID. [cite: 161]
+    const tokenId = String(req.user.id); 
+    const urlId = String(req.params.student_id);
 
-  // If the user is a student, their 'id' in the token must match the ':student_id' in the URL
-  if (req.user.roles.includes(ROLES.STUDENT) && req.user.id !== Number(req.params.student_id)) {
-    return res.status(403).json({ message: "Access denied: You can only view your own records" });
-  }
-  next();
+    if (tokenId !== urlId) {
+        // This prevents Student A from seeing Student B's data [cite: 224]
+        return res.status(403).json({ 
+            message: "Access denied: You can only access your own record." 
+        });
+    }
+
+    next();
 }
 
 module.exports = {
   verifyRole,
   restrictStudentToOwnData,
 };
+ 
