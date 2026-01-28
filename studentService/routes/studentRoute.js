@@ -5,9 +5,9 @@ const Student = require("../models/student");
 const { verifyRole, restrictStudentToOwnData } = require("./auth/util");
 const { ROLES } = require("../../consts");
 const e = require("express");
+const { studentServiceLogger: studentLogger } = require("../../logging");
 
 const router = express.Router();
-
 
 router.post("/", async (req, res) => {
     // Object Destructuring for one user data
@@ -47,14 +47,15 @@ router.post("/", async (req, res) => {
 
 });
 
-router.get("/", verifyRole([ROLES.PROFESSOR, ROLES.ADMIN, ROLES.AUTH_SERVICE]), async (req, res) => {
+router.get("/", verifyRole([ROLES.PROFESSOR, ROLES.ADMIN, ROLES.AUTH_SERVICE, ROLES.ENROLLMENT_SERVICE]), async (req, res) => {
     try{
         const students = await Student.find();
+        studentLogger.info("Fetched all students from database.");
         res.status(200).json(students);
     }
     catch(error){
         res.status(500).json({message: "Unable to fetch students"});
-        console.log(error);
+        studentLogger.error("Error fetching students from database");
     }
 });
 

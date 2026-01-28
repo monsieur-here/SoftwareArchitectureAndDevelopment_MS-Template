@@ -1,11 +1,11 @@
 {
-  "name": "courseservice",
+  "name": "enrollmentservice",
   "version": "1.0.0",
-  "description": "Course MicroService for Student Management System",
+  "description": "Enrollment MicroService for Student Management System",
   "main": "index.js",
   "scripts": {
-    "start-course-service": "node index.js",
-    "dev-course-service": "nodemon index.js"
+    "start-enrollment-service": "node index.js",
+    "dev-enrollment-service": "nodemon index.js"
   },
   "author": "Gunjan Kadu",
   "license": "ISC",
@@ -19,7 +19,6 @@
     "jsonwebtoken": "^9.0.2",
     "jwk-to-pem": "^2.0.7",
     "jwks-rsa": "^3.1.0",
-    "mongodb": "^7.0.0",
     "mongoose": "^8.9.2"
   },
   "devDependencies": {

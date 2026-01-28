@@ -1,16 +1,44 @@
 const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
 const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
 
-const { ROLES, AUTH_SERVICE, ENROLLMENT_SERVICE } = require("../../../consts");
+const { ROLES, STUDENT_SERVICE, COURSE_SERVICE } = require("../../../consts");
+// const { getCorrelationId } = require("../../../correlationId");
 
 dotenv.config();
 
-const trustedDomain = [
-  AUTH_SERVICE.split("api")[0],
-  ENROLLMENT_SERVICE.split("api")[0],
-];
+const axiosInstance = axios.create();
 
+axiosInstance.interceptors.request.use(
+  (config) => {
+    // const correlationId = getCorrelationId(); // Retrieve the correlation ID
+    // config.headers["x-correlation-id"] = correlationId; // Add it to the headers
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  },
+);
+const kid = "1";
+const jku = `http://localhost:${process.env.PORT}/.well-known/jwks.json`;
+
+// Define additional headers
+const customHeaders = {
+  kid, // Replace with the actual Key ID
+  jku, // Replace with your JWKS URL
+};
+
+// Path to your private and public keys
+const privateKey = fs.readFileSync(
+  path.join(__dirname, "../auth/keys/private.key"),
+  "utf8",
+);
+const publicKey = fs.readFileSync(
+  path.join(__dirname, "../auth/keys/public.key"),
+  "utf8",
+);
 /**
  * Fetch the JWKS from a given URI.
  * @param {string} jku - The JWKS URI from the JWT header.
@@ -50,10 +78,6 @@ async function verifyJWTWithJWKS(token) {
     throw new Error("JWT header is missing 'kid' or 'jku'");
   }
 
-    if (!trustedDomain.includes(jku.split(".well")[0])) {
-      throw new Error("Domain not supported");
-    }
-
   if (alg !== "RS256") {
     throw new Error(`Unsupported algorithm: ${alg}`);
   }
@@ -62,6 +86,18 @@ async function verifyJWTWithJWKS(token) {
   const publicKey = getPublicKeyFromJWKS(kid, keys);
 
   return jwt.verify(token, publicKey, { algorithms: ["RS256"] });
+}
+
+//TODO: HAndle the private key generation
+// Generate a JWT using the private key
+function generateJWTWithPrivateKey(payload) {
+  // Sign the JWT using RS256 (asymmetric encryption)
+  const token = jwt.sign(payload, privateKey, {
+    algorithm: "RS256",
+    header: customHeaders,
+    expiresIn: "6h", // Set expiration
+  });
+  return token;
 }
 
 // Role-based Access Control Middleware
@@ -82,10 +118,9 @@ function verifyRole(requiredRoles) {
       req.user = decoded; // Attach the decoded payload (user data) to the request object
 
       // Step 2: Check if the user has any of the required roles
-      // The some() method of Array instances tests whether at least one element in the array passes the test implemented by the provided function.
       const userRoles = req.user.roles || [];
       const hasRequiredRole = userRoles.some((role) =>
-        requiredRoles.includes(role)
+        requiredRoles.includes(role),
       );
       if (hasRequiredRole) {
         return next(); // User has at least one of the required roles, so proceed
@@ -103,33 +138,45 @@ function verifyRole(requiredRoles) {
   };
 }
 
+async function fetchStudents() {
+  let token = generateJWTWithPrivateKey({
+    id: ROLES.ENROLLMENT_SERVICE,
+    roles: [ROLES.ENROLLMENT_SERVICE],
+  });
+  const response = await axios.get(`${STUDENT_SERVICE}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data;
+}
+
+async function fetchCourses() {
+  let token = generateJWTWithPrivateKey({
+    id: ROLES.ENROLLMENT_SERVICE,
+    roles: [ROLES.ENROLLMENT_SERVICE],
+  });
+  const response = await axios.get(`${COURSE_SERVICE}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data;
+}
+
 function restrictStudentToOwnData(req, res, next) {
-    // 1. Safety Check: If verifyRole didn't find a user, stop here.
-    if (!req.user) {
-        return res.status(401).json({ message: "Authentication required" });
-    }
-
-    // 2. Professor/Admin Override: They can see anyone. 
-    if (req.user.roles.includes(ROLES.PROFESSOR) || req.user.roles.includes(ROLES.ADMIN)) {
-        return next();
-    }
-
-    // 3. The Constraint: Compare Token ID to URL ID.
-    const tokenId = String(req.user.id); 
-    const urlId = String(req.params.student_id);
-
-    if (tokenId !== urlId) {
-        // This prevents Student A from seeing Student B's data
-        return res.status(403).json({ 
-            message: "Access denied: You can only access your own record." 
-        });
-    }
-
-    next();
+  if (req.user.roles.includes(ROLES.STUDENT) && req.user.id !== req.params.id) {
+    return res.status(403).json({
+      message: "Access forbidden: You can only access your own data",
+    });
+  }
+  next();
 }
 
 module.exports = {
+  kid,
   verifyRole,
   restrictStudentToOwnData,
+  fetchStudents,
+  fetchCourses,
 };
- 
