@@ -7,6 +7,7 @@ const { ROLES } = require("../../consts");
 
 const axios = require("axios");
 const bcrypt = require("bcryptjs");
+const { restrictProfessorToOwnData } = require("./auth/util");
 
 const router = express.Router();
 
@@ -74,7 +75,7 @@ router.get("/studentProfiles", verifyRole([ROLES.PROFESSOR]), async(req, res) =>
 })
 
 // Get a specific professor by ID
-router.get("/:professor_id", async (req, res) => {
+router.get("/:professor_id", verifyRole([ROLES.PROFESSOR]), restrictProfessorToOwnData, async (req, res) => {
   try {
     const professor = await Professor.findOne({professor_id: req.params.professor_id}).select("-password"); // Exclude password
 

@@ -1,12 +1,9 @@
 const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
 const axios = require("axios");
-
-const { ROLES, AUTH_SERVICE } = require("../../../consts");
+const { ROLES } = require("../../../consts");
 
 dotenv.config();
-
-const trustedDomain = [AUTH_SERVICE.split("api")[0]];
 
 /**
  * Fetch the JWKS from a given URI.
@@ -47,10 +44,6 @@ async function verifyJWTWithJWKS(token) {
     throw new Error("JWT header is missing 'kid' or 'jku'");
   }
 
-  //   if (!trustedDomain.includes(jku.split(".well")[0])) {
-  //     throw new Error("Domain not supported");
-  //   }
-
   if (alg !== "RS256") {
     throw new Error(`Unsupported algorithm: ${alg}`);
   }
@@ -79,7 +72,6 @@ function verifyRole(requiredRoles) {
       req.user = decoded; // Attach the decoded payload (user data) to the request object
 
       // Step 2: Check if the user has any of the required roles
-      // The some() method of Array instances tests whether at least one element in the array passes the test implemented by the provided function.
       const userRoles = req.user.roles || [];
       const hasRequiredRole = userRoles.some((role) =>
         requiredRoles.includes(role)
@@ -100,33 +92,19 @@ function verifyRole(requiredRoles) {
   };
 }
 
-function restrictStudentToOwnData(req, res, next) {
-    // 1. Safety Check: If verifyRole didn't find a user, stop here.
-    if (!req.user) {
-        return res.status(401).json({ message: "Authentication required" });
-    }
-
-    // 2. Professor/Admin Override: They can see anyone. 
-    if (req.user.roles.includes(ROLES.PROFESSOR) || req.user.roles.includes(ROLES.ADMIN)) {
-        return next();
-    }
-
-    // 3. The Constraint: Compare Token ID to URL ID.
-    const tokenId = String(req.user.id); 
-    const urlId = String(req.params.student_id);
-
-    if (tokenId !== urlId) {
-        // This prevents Student A from seeing Student B's data
-        return res.status(403).json({ 
-            message: "Access denied: You can only access your own record." 
-        });
-    }
-
-    next();
+function restrictProfessorToOwnData(req, res, next) {
+  if (
+    req.user.roles.includes(ROLES.PROFESSOR) &&
+    req.user.id !== req.params.id
+  ) {
+    return res.status(403).json({
+      message: "Access forbidden: You can only access your own data",
+    });
+  }
+  next();
 }
 
 module.exports = {
   verifyRole,
-  restrictStudentToOwnData,
+  restrictProfessorToOwnData,
 };
- 

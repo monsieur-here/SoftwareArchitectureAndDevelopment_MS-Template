@@ -36,9 +36,6 @@ router.post("/student", async (req, res) => {
     // If not, throw the correct error message
     // ----
 
-    if(!student){
-      return  res.status(401).json({ message: "Invalid student credentials" });
-    }
 
     const isValidPassword = await bcrypt.compare(password, student.password);
 
@@ -52,11 +49,17 @@ router.post("/student", async (req, res) => {
     roles: [ROLES.STUDENT]
    });
 
-   res.status(200).json({accessToken: token})
+   res.status(200).json({accessToken: token, 
+                        user : {
+                          id: student.student_id, 
+                          name: student.name
+                        }
+                      }
+   )
 
   } catch (error) {
     console.log(error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error during login" });
   }
 });
 
@@ -90,7 +93,13 @@ router.post("/professor", async (req, res) => {
       id: professor.professor_id,
       roles: [ROLES.PROFESSOR],
     });
-    res.status(200).json({ accessToken: token });
+    res.status(200).json({ accessToken: token, 
+                          user : {
+                            id: professor.professor_id,
+                            name: professor.name
+                          }
+                       }
+    );
 
   } catch (error) {
     console.log(error);
