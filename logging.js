@@ -20,9 +20,12 @@ const esTransport = (appName) => {
       node: "https://my-deployment-b6715a.es.us-central1.gcp.cloud.es.io:9243",
       auth: {
         username: "elastic",
-        password: "n3957Fya0WBeHjKguBrmCqJT",
+        password: "bQyZp4mL0CYig7OC3MFkvQkY",
       },
     },
+    maxRetries: 5,
+    requestTimeout: 60000,
+    tls: { rejectUnauthorized: false },
     indexPrefix: "sms-logs", // Logs will be stored in indices like "nodejs-logs-YYYY.MM.DD"
     transformer: (logData) => ({
       ...logData,
@@ -61,6 +64,16 @@ let authServiceLogger = createDynamicLogger("authService");
 let studentServiceLogger = createDynamicLogger("studentService");
 let enrollementServiceLogger = createDynamicLogger("enrollmentService");
 let courseServiceLogger = createDynamicLogger("courseService");
+
+// Add this after your logger creation
+authServiceLogger.transports.find(t => t instanceof ElasticsearchTransport)
+  .on('warning', (err) => {
+    console.error('--- ELASTICSEARCH WARNING ---', err);
+  })
+  .on('error', (err) => {
+    console.error('--- ELASTICSEARCH CRITICAL ERROR ---', err);
+  });
+
 module.exports = {
   authServiceLogger,
   studentServiceLogger,
