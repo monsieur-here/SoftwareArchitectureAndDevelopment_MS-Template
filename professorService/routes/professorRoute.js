@@ -1,6 +1,6 @@
 const express = require("express");
 const Professor = require("../models/professor");
-const { run } = require("svelte/legacy");
+//const { run } = require("svelte/legacy");
 
 const { verifyRole } = require("../../studentService/routes/auth/util");
 const { ROLES } = require("../../consts");

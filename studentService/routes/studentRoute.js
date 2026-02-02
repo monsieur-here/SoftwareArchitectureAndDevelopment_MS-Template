@@ -1,129 +1,130 @@
+console.log("Student routes loaded");
+ 
 const express = require("express");
-
+ 
 const Student = require("../models/student");
-
+ 
 const { verifyRole, restrictStudentToOwnData } = require("./auth/util");
 const { ROLES } = require("../../consts");
-const e = require("express");
-
-const router = express.Router();
-
-
+ 
+const router = express.Router(); // Create end point for student routes
+const {studentServiceLogger: logger} = require("../../logging")
+ 
+// Create a new Student
 router.post("/", async (req, res) => {
-    // Object Destructuring for one user data
-    // const { name, email, password } = req.body;
-
-    // Preparing data for multiple user creation
-    const studentData = Array.isArray(req.body) ? req.body : [req.body];
-
-    // Trying to validate the incoming data
-    // if(!name || !email || !password) {
-    //     return res.status(400).json({message:" All credentials are required"});
-    // }
-
-    if(!studentData || studentData.length === 0) {
-        return res.status(400).json({message:" All credentials are required"});
+  try {
+    const { name, email, phone, password } = req.body;
+ console.log("Creating student:", req.body);
+    // Ensure all fields are provided
+    if (!name || !email  || !password) {
+      return res.status(400).json({ message: "All fields are required" });
     }
-    // Preparing email array for validation
-    const emailValidation = studentData.map(student => student.email);
-
-    try{
-        // Trying to find if the email exists
-        const existingStudent =await Student.find({email :{ $in: emailValidation}});
-        if(existingStudent.length > 0){
-            return res.status(400).json({message:"Student with this email already exists"});
-        }
-
-        // const newStudent = new Student({studentData});
-        // console.log("Student before save: ", newStudent);
-
-        const savedStudent = await Student.create(studentData);
-        res.status(201).json(savedStudent);
+ 
+    // Check for duplicate email or phone
+    const existingStudent = await Student.findOne({
+      $or: [{ email }],
+    });
+    if (existingStudent) {
+      return res.status(409).json({ message: "Email or phone already exists" });
     }
-    catch(error){
-        res.status(500).json({message: "Unable to create students"});
-        console.log(error);
-    }
-
+ 
+    // Create and save the Student
+    const student = new Student({ name, email, password });
+    await student.save();
+ 
+    res
+      .status(201)
+      .json({ message: "Student created successfully", student });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
 });
-
-router.get("/", async (req, res) => {
-    try{
-        const students = await Student.find();
-        res.status(200).json(students);
-    }
-    catch(error){
-        res.status(500).json({message: "Unable to fetch students"});
-        console.log(error);
-    }
+ 
+// Get all Students
+router.get("/",verifyRole([ROLES.ADMIN,ROLES.PROFESSOR,ROLES.AUTH_SERVICE, ROLES.ENROLLMENT_SERVICE]), async (req, res) => {
+  try {
+    const students = await Student.find(); // Exclude password
+    logger.info(`Fetched ${students.length} students`);
+    return res.status(200).json(students);
+  } catch (error) {
+    console.error(error);
+    logger.error(`Error fetching students: ${error}`);
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
 });
-
-
-
-router.get("/:student_id", verifyRole([ROLES.STUDENT, ROLES.PROFESSOR]),
-  restrictStudentToOwnData, async (req, res) => {
-    try{
-        
-        const student = await Student.findOne({student_id: req.params.student_id});
-
-        if(!student){
-            return res.status(404).json({message: "Student not found"});
-        }
-        res.status(200).json(student);
+ 
+// Get a specific student by ID
+router.get("/:id",verifyRole([ROLES.ADMIN,ROLES.PROFESSOR,ROLES.AUTH_SERVICE, ROLES.STUDENT]), async (req, res) => {
+  try {
+    const students = await Student.findById(req.params.id).select(
+      "-password"
+    );
+ 
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
     }
-    catch(error){
-        res.status(500).json({message: "Unable to fetch student"});
-        console.log(error);
+ 
+    res.status(200).json(student);
+  } catch (error) {
+    console.error(error);
+    if (error.kind === "ObjectId") {
+      return res.status(400).json({ message: "Invalid student ID format" });
     }
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
 });
-
-router.put("/:student_id", async (req, res) => {
-    try{
-        const updatedStudent = await Student.findOneAndUpdate(
-            {student_id: req.params.student_id}, 
-            {name: req.body.name, email: req.body.email}, 
-            {new: true});
-
-        if(!updatedStudent){
-            return res.status(404).json({message: "Student not found"});
-        }
-        res.status(200).json({message: "Student updated successfully", data: updatedStudent});
-
-    }catch(error){
-        res.status(500).json({message: "Unable to update student"});
-        console.log(error);
+ 
+// Update a student
+router.put("/:id",verifyRole([ROLES.ADMIN, ROLES.STUDENT]), async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+ 
+    const updatedData = { name, email };
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      updatedData.password = await bcrypt.hash(password, salt);
     }
+ 
+    const student = await Student.findByIdAndUpdate(
+      req.params.id,
+      updatedData,
+      {
+        new: true,
+      }
+    );
+ 
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+ 
+    res
+      .status(200)
+      .json({ message: "Student updated successfully", student });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
 });
-
+ 
 // Delete a student
-router.delete("/:student_id", async (req, res) => {
-    try{
-        const deletedStudent = await Student.findOneAndDelete({student_id: req.params.student_id});
-
-        if(!deletedStudent){
-            return res.status(404).json({message: "Student not found"});
-        }
-        res.status(200).json({message: "Student deleted successfully", data: deletedStudent});
-
-    }catch(error){
-        res.status(500).json({message: "Unable to delete student"});
-        console.log(error);
+router.delete("/:id",verifyRole([ROLES.ADMIN]), async (req, res) => {
+  try {
+    const student = await Student.findByIdAndDelete(req.params.id);
+ 
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
     }
+ 
+    res
+      .status(200)
+      .json({ message: "Student deleted successfully", student });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
 });
-
-// router.delete("/cleanup", async (req, res) => {
-//     try{
-//         const result = await Student.deleteMany({
-//             student_id: {$exists : false}
-//         });
-//         res.status(200).json({
-//             message: "All students without student ID deleted successfully",
-//             deletedCount: result.deletedCount
-//         });
-//     }catch(error){
-//         res.status(500).json({message: "Unable to delete students"});
-//         console.log(error);
-//     }
-// });
-
+ 
 module.exports = router;
+ 
+ 
