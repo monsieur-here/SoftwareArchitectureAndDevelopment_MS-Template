@@ -4,7 +4,7 @@ const express = require("express");
  
 const Student = require("../models/student");
  
-const { verifyRole, restrictStudentToOwnData } = require("./auth/util");
+const { verifyRole, restrictStudentToOwnData, jwtRateLimiter } = require("./auth/util");
 const { ROLES } = require("../../consts");
  
 const router = express.Router(); // Create end point for student routes
@@ -42,7 +42,7 @@ router.post("/", async (req, res) => {
 });
  
 // Get all Students
-router.get("/",verifyRole([ROLES.ADMIN,ROLES.PROFESSOR,ROLES.AUTH_SERVICE, ROLES.ENROLLMENT_SERVICE]), async (req, res) => {
+router.get("/",verifyRole([ROLES.ADMIN,ROLES.PROFESSOR,ROLES.AUTH_SERVICE, ROLES.ENROLLMENT_SERVICE]),jwtRateLimiter ,async (req, res) => {
   try {
     const students = await Student.find(); // Exclude password
     logger.info(`Fetched ${students.length} students`);
