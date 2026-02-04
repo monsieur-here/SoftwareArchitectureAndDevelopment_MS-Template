@@ -1,11 +1,11 @@
 {
-  "name": "authservice",
+  "name": "courseservice",
   "version": "1.0.0",
-  "description": "Auth MicroService for Student Management System",
+  "description": "Course MicroService for Student Management System",
   "main": "index.js",
   "scripts": {
-    "start-auth-service": "node index.js",
-    "dev-auth-service": "nodemon index.js"
+    "start-course-service": "node index.js",
+    "dev-course-service": "nodemon index.js"
   },
   "author": "Gunjan Kadu",
   "license": "ISC",
@@ -15,10 +15,10 @@
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "express-rate-limit": "^8.2.1",
     "fs": "*",
     "jsonwebtoken": "^9.0.2",
     "jwk-to-pem": "^2.0.7",
+    "jwks-rsa": "^3.1.0",
     "mongoose": "^8.9.2"
   },
   "devDependencies": {

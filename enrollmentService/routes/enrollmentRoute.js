@@ -11,6 +11,7 @@ const {
   fetchCourses,
 } = require("./auth/util");
 const { ROLES } = require("../../consts");
+const { getCorrelationId } = require("../../correlationId");
 
 // Create a new enrollment
 router.post(
@@ -55,6 +56,7 @@ router.post(
 
       res.status(error.status || 500).json({
         message: error.message || "Unable to create enrollement",
+        correlationId: getCorrelationId(),
       });
     }
   },

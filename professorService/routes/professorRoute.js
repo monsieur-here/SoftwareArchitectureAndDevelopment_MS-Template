@@ -54,7 +54,7 @@ router.get("/", async (req, res) => {
 });
 
 // Get the student details
-router.get("/studentProfiles", verifyRole([ROLES.PROFESSOR]), async(req, res) => {
+router.get("/students", verifyRole([ROLES.PROFESSOR]), async(req, res) => {
   try {
     const authToken = req.headers.authorization;
 

@@ -1,55 +1,18 @@
 const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
 const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
-
-const { ROLES, STUDENT_SERVICE, COURSE_SERVICE } = require("../../../consts");
-// const { getCorrelationId } = require("../../../correlationId");
+const { ROLES } = require("../../../consts");
 
 dotenv.config();
 
-const axiosInstance = axios.create();
-
-axiosInstance.interceptors.request.use(
-  (config) => {
-    // const correlationId = getCorrelationId(); // Retrieve the correlation ID
-    // config.headers["x-correlation-id"] = correlationId; // Add it to the headers
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  },
-);
-const kid = "1";
-const jku = `http://localhost:${process.env.PORT}/.well-known/jwks.json`;
-
-// Define additional headers
-const customHeaders = {
-  kid, // Replace with the actual Key ID
-  jku, // Replace with your JWKS URL
-};
-
-// Path to your private and public keys
-const privateKey = fs.readFileSync(
-  path.join(__dirname, "../auth/keys/private.key"),
-  "utf8",
-);
-const publicKey = fs.readFileSync(
-  path.join(__dirname, "../auth/keys/public.key"),
-  "utf8",
-);
 /**
  * Fetch the JWKS from a given URI.
  * @param {string} jku - The JWKS URI from the JWT header.
  * @returns {Promise<Array>} - A promise that resolves to the JWKS keys.
  */
 async function fetchJWKS(jku) {
-  const response = await axios.get(jku, {
-  "x-correlationId": getCorrelationId()
-});
+  const response = await axios.get(jku);
   return response.data.keys;
-  
 }
 
 /**
@@ -91,18 +54,6 @@ async function verifyJWTWithJWKS(token) {
   return jwt.verify(token, publicKey, { algorithms: ["RS256"] });
 }
 
-//TODO: HAndle the private key generation
-// Generate a JWT using the private key
-function generateJWTWithPrivateKey(payload) {
-  // Sign the JWT using RS256 (asymmetric encryption)
-  const token = jwt.sign(payload, privateKey, {
-    algorithm: "RS256",
-    header: customHeaders,
-    expiresIn: "6h", // Set expiration
-  });
-  return token;
-}
-
 // Role-based Access Control Middleware
 function verifyRole(requiredRoles) {
   return async (req, res, next) => {
@@ -123,7 +74,7 @@ function verifyRole(requiredRoles) {
       // Step 2: Check if the user has any of the required roles
       const userRoles = req.user.roles || [];
       const hasRequiredRole = userRoles.some((role) =>
-        requiredRoles.includes(role),
+        requiredRoles.includes(role)
       );
       if (hasRequiredRole) {
         return next(); // User has at least one of the required roles, so proceed
@@ -141,37 +92,11 @@ function verifyRole(requiredRoles) {
   };
 }
 
-async function fetchStudents() {
-  let token = generateJWTWithPrivateKey({
-    id: ROLES.ENROLLMENT_SERVICE,
-    roles: [ROLES.ENROLLMENT_SERVICE],
-  });
-  const response = await axios.get(`${STUDENT_SERVICE}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-
-      "x-correlation-id": axios.getCorrelationId(), // Include correlation ID in the request
-    },
-  });
-  return response.data;
-}
-
-async function fetchCourses() {
-  let token = generateJWTWithPrivateKey({
-    id: ROLES.ENROLLMENT_SERVICE,
-    roles: [ROLES.ENROLLMENT_SERVICE],
-  });
-  const response = await axios.get(`${COURSE_SERVICE}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "x-correlationId": getCorrelationId(), // Include correlation ID in the request
-    },
-  });
-  return response.data;
-}
-
-function restrictStudentToOwnData(req, res, next) {
-  if (req.user.roles.includes(ROLES.STUDENT) && req.user.id !== req.params.id) {
+function restrictProfessorToOwnData(req, res, next) {
+  if (
+    req.user.roles.includes(ROLES.PROFESSOR) &&
+    req.user.id !== req.params.id
+  ) {
     return res.status(403).json({
       message: "Access forbidden: You can only access your own data",
     });
@@ -180,9 +105,6 @@ function restrictStudentToOwnData(req, res, next) {
 }
 
 module.exports = {
-  kid,
   verifyRole,
-  restrictStudentToOwnData,
-  fetchStudents,
-  fetchCourses,
+  restrictProfessorToOwnData,
 };
