@@ -7,15 +7,17 @@ const router = express.Router();
 const {
   verifyRole,
   restrictStudentToOwnData,
+  enrollmentLimiter,
   fetchStudents,
   fetchCourses,
 } = require("./auth/util");
 const { ROLES } = require("../../consts");
+const { getCorrelationId } = require("../../correlationId.js");
 
 // Create a new enrollment
 router.post(
   "/",
-  verifyRole([ROLES.ADMIN, ROLES.PROFESSOR]),
+  verifyRole([ROLES.ADMIN, ROLES.PROFESSOR]), enrollmentLimiter,
   async (req, res) => {
     try {
       const { student, course } = req.body;
@@ -30,20 +32,23 @@ router.post(
       const students = await fetchStudents();
       const existingStudent = students.find((s) => s._id === student);
       if (!existingStudent) {
-        return res.status(404).json({ message: "Student not found" });
+        return res.status(404).json({ message: "Student not found", correlationId: getCorrelationId(),});
       }
 
       const courses = await fetchCourses();
       const existingCourse = courses.find((c) => c._id === course);
       if (!existingCourse) {
-        return res.status(404).json({ message: "Course not found" });
+        return res.status(404).json({ message: "Course not found", correlationId: getCorrelationId(), });
       }
 
       // Attempt to create the Enrollment
       const enrollment = new Enrollment({ student, course });
       await enrollment.save();
 
-      res.status(201).json(enrollment);
+      res.status(201).json({
+            enrollment: enrollment.toObject(),
+            correlationId: getCorrelationId() // Include ID here!
+        });
     } catch (error) {
       // Handle duplicate enrollment error
       if (error.code === 11000) {
@@ -55,6 +60,7 @@ router.post(
 
       res.status(error.status || 500).json({
         message: error.message || "Unable to create enrollement",
+        correlationId: getCorrelationId(),
       });
     }
   },
