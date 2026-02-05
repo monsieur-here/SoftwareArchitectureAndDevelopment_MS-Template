@@ -2,7 +2,7 @@ const express = require("express");
 
 const Student = require("../models/student");
 
-const { verifyRole, restrictStudentToOwnData } = require("./auth/util");
+const { verifyRole, restrictStudentToOwnData, jwtRateLimiter } = require("./auth/util");
 const { ROLES } = require("../../consts");
 const e = require("express");
 const { studentServiceLogger: studentLogger } = require("../../logging");
@@ -47,7 +47,7 @@ router.post("/", async (req, res) => {
 
 });
 
-router.get("/", verifyRole([ROLES.PROFESSOR, ROLES.ADMIN, ROLES.AUTH_SERVICE, ROLES.ENROLLMENT_SERVICE]), async (req, res) => {
+router.get("/", verifyRole([ROLES.PROFESSOR, ROLES.ADMIN, ROLES.AUTH_SERVICE, ROLES.ENROLLMENT_SERVICE]), jwtRateLimiter, async (req, res) => {
     try{
         const students = await Student.find();
         studentLogger.info("Fetched all students from database.");

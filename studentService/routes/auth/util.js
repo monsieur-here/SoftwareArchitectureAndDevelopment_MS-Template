@@ -3,6 +3,7 @@ const dotenv = require("dotenv");
 const axios = require("axios");
 
 const { ROLES, AUTH_SERVICE, ENROLLMENT_SERVICE } = require("../../../consts");
+const { rateLimit } = require("express-rate-limit");
 
 dotenv.config();
 
@@ -103,6 +104,17 @@ function verifyRole(requiredRoles) {
   };
 }
 
+const jwtRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // Limit each IP to 200 requests per windowMs
+  message: "Too many authentication requests from this IP, please try again later.",
+  headers: true,
+  keyGenerator: (req) => req.user.id, 
+  handler: (req, res) => {
+    res.status(429).json({ message: "Too many requests, please try again later." });
+  }
+});
+
 function restrictStudentToOwnData(req, res, next) {
     // 1. Safety Check: If verifyRole didn't find a user, stop here.
     if (!req.user) {
@@ -131,5 +143,6 @@ function restrictStudentToOwnData(req, res, next) {
 module.exports = {
   verifyRole,
   restrictStudentToOwnData,
+  jwtRateLimiter,
 };
  

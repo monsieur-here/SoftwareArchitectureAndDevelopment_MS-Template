@@ -6,6 +6,8 @@ dotenv.config();
 const connectDB = require("./config/db");
 const studentRoutes = require("./routes/studentRoute");
 
+const { correlationIdMiddleware } = require("../correlationId");
+
 // Load environment variables from .env file
 dotenv.config();
 
@@ -17,6 +19,7 @@ connectDB();
 
 // Middleware to parse JSON requests
 app.use(express.json());
+app.use(correlationIdMiddleware);
 
 // Routes
 app.use("/api/students", studentRoutes);
