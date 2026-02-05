@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 
 const { ROLES, STUDENT_SERVICE, COURSE_SERVICE } = require("../../../consts");
-// const { getCorrelationId } = require("../../../correlationId");
+const { getCorrelationId } = require("../../../correlationId");
 
 dotenv.config();
 
@@ -13,8 +13,8 @@ const axiosInstance = axios.create();
 
 axiosInstance.interceptors.request.use(
   (config) => {
-    // const correlationId = getCorrelationId(); // Retrieve the correlation ID
-    // config.headers["x-correlation-id"] = correlationId; // Add it to the headers
+    const correlationId = getCorrelationId(); // Retrieve the correlation ID
+    config.headers["x-correlation-id"] = correlationId; // Add it to the headers
     return config;
   },
   (error) => {
@@ -149,8 +149,7 @@ async function fetchStudents() {
   const response = await axios.get(`${STUDENT_SERVICE}`, {
     headers: {
       Authorization: `Bearer ${token}`,
-
-      "x-correlation-id": axios.getCorrelationId(), // Include correlation ID in the request
+      "x-correlation-id": getCorrelationId(), // Include correlation ID in the request
     },
   });
   return response.data;
