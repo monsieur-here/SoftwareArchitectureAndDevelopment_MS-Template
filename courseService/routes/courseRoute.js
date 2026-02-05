@@ -4,6 +4,9 @@ const router = express.Router();
 const { verifyRole } = require("./auth/util");
 const { ROLES } = require("../../consts");
 
+const {courseServiceLogger: courseLogger} = require("../../logging");
+const { coursesRateLimiter } = require("./auth/util");
+
 // Create a new course
 //TODO: also add more restrictions to course
 // Only the professor who created the course can edit it or delete it etc or has access to it
@@ -26,11 +29,14 @@ router.post(
 router.get(
   "/",
   verifyRole([ROLES.ADMIN, ROLES.PROFESSOR, ROLES.ENROLLMENT_SERVICE]),
+  coursesRateLimiter,
   async (req, res) => {
     try {
       const courses = await Course.find();
+      courseLogger.info("Fetched all courses from database.");
       res.status(200).json(courses);
     } catch (error) {
+      courseLogger.error("Error fetching courses from database");
       res.status(500).json({ error: error.message });
     }
   }
@@ -40,14 +46,17 @@ router.get(
 router.get(
   "/:id",
   verifyRole([ROLES.ADMIN, ROLES.PROFESSOR, ROLES.ENROLLMENT_SERVICE]),
+  coursesRateLimiter,
   async (req, res) => {
     try {
       const course = await Course.findById(req.params.id);
       if (!course) {
         return res.status(404).json({ message: "Course not found" });
       }
+      courseLogger.info(`Fetched course with ID: ${req.params.id}`);
       res.status(200).json(course);
     } catch (error) {
+      courseLogger.error(`Error fetching course with ID: ${req.params.id}`);
       res.status(500).json({ error: error.message });
     }
   }

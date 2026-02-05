@@ -14,6 +14,8 @@ const {
 const { ROLES } = require("../../consts");
 const { getCorrelationId } = require("../../correlationId.js");
 
+const {enrollmentServiceLogger: enrollmentLogger} = require("../../logging");
+
 // Create a new enrollment
 router.post(
   "/",
@@ -73,11 +75,14 @@ router.get(
   async (req, res) => {
     try {
       const enrollments = await Enrollment.find();
+      enrollmentLogger.info("Fetched all enrollments from database.");
       res.status(200).json(enrollments);
     } catch (error) {
       res.status(500).json({
         message: "Server Error: Unable to fetch enrollments",
+        correlationId: getCorrelationId()
       });
+      enrollmentLogger.error("Error fetching enrollments from database");
     }
   },
 );
@@ -113,7 +118,7 @@ router.get(
       if (course) {
         enrollmentObj.course = course;
       }
-
+      enrollmentLogger.info(`Fetched enrollment with ID: ${req.params.id}`);
       res.status(200).json(enrollmentObj);
     } catch (error) {
       if (error.kind === "ObjectId") {
@@ -123,7 +128,9 @@ router.get(
       }
       res.status(500).json({
         message: "Server Error: Unable to fetch enrollment",
+        correlationId: getCorrelationId()
       });
+      enrollmentLogger.error(`Error fetching enrollment with ID: ${req.params.id}`);
     }
   },
 );

@@ -3,6 +3,8 @@ const dotenv = require("dotenv");
 const axios = require("axios");
 const { ROLES } = require("../../../consts");
 
+const { rateLimit } = require("express-rate-limit");
+
 dotenv.config();
 
 /**
@@ -91,6 +93,13 @@ function verifyRole(requiredRoles) {
   };
 }
 
+const professorRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // Limit each IP to 10 requests per windowMs
+  message: "Too many authentication requests, please try again later.",
+  headers: true,
+});
+
 function restrictProfessorToOwnData(req, res, next) {
 
   if(req.user.roles.includes(ROLES.ADMIN)){
@@ -117,4 +126,5 @@ function restrictProfessorToOwnData(req, res, next) {
 module.exports = {
   verifyRole,
   restrictProfessorToOwnData,
+  professorRateLimiter
 };

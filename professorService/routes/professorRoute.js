@@ -7,9 +7,10 @@ const { ROLES } = require("../../consts");
 
 const axios = require("axios");
 const bcrypt = require("bcryptjs");
-const { restrictProfessorToOwnData } = require("./auth/util");
+const { restrictProfessorToOwnData, professorRateLimiter } = require("./auth/util");
 
 const router = express.Router();
+const {professorServiceLogger: professorLogger} = require("../../logging");
 
 // Create a new professor
 router.post("/", async (req, res) => {
@@ -44,25 +45,27 @@ router.post("/", async (req, res) => {
 });
 
 // Get all professors
-router.get("/", async (req, res) => {
+router.get("/", professorRateLimiter, async (req, res) => {
   try {
     const professors = await Professor.find(); // Exclude password
+    professorLogger.info(`Fetched all professors from the database.`);
     return res.status(200).json(professors);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server Error", error: error.message });
+    professorLogger.error(`Error fetching professors from database`);
   }
 });
 
 // Get the student details
-router.get("/studentProfiles", verifyRole([ROLES.PROFESSOR]), async(req, res) => {
+router.get("/studentProfiles", verifyRole([ROLES.PROFESSOR]), professorRateLimiter, async(req, res) => {
   try {
     const authToken = req.headers.authorization;
 
     const response = await axios.get("http://localhost:5003/api/students", 
       { headers: { Authorization: authToken } });
-
-      res.json(
+      professorLogger.info(`Fetched all student profiles from the database.`);
+      res.status(200).json(
         {
           message: "Student profiles fetched successfully",
           allStudents: response.data,
@@ -71,18 +74,19 @@ router.get("/studentProfiles", verifyRole([ROLES.PROFESSOR]), async(req, res) =>
   } catch (error) {
     console.error("Error fetching student profiles:", error);
     res.status(500).json({ message: "Unable to fetch student profiles" });
+    professorLogger.error(`Error fetching student profiles from database`);
   }
 })
 
 // Get a specific professor by ID
-router.get("/:professor_id", verifyRole([ROLES.PROFESSOR]), restrictProfessorToOwnData, async (req, res) => {
+router.get("/:professor_id", verifyRole([ROLES.PROFESSOR]), professorRateLimiter, restrictProfessorToOwnData, async (req, res) => {
   try {
     const professor = await Professor.findOne({professor_id: req.params.professor_id}).select("-password"); // Exclude password
 
     if (!professor) {
       return res.status(404).json({ message: "Professor not found" });
     }
-
+    professorLogger.info(`Fetched professor with ID: ${req.params.professor_id}`);
     res.status(200).json(professor);
   } catch (error) {
     console.error(error);
@@ -90,23 +94,25 @@ router.get("/:professor_id", verifyRole([ROLES.PROFESSOR]), restrictProfessorToO
     //   return res.status(400).json({ message: "Invalid professor ID format" });
     // }
     res.status(500).json({ message: "Server Error", error: error.message });
+    professorLogger.error(`Error fetching professor with ID: ${req.params.professor_id}`);
   }
 });
 
-router.get("/studentProfiles/:student_id", verifyRole([ROLES.PROFESSOR]), async(req, res) => {
+router.get("/studentProfiles/:student_id", verifyRole([ROLES.PROFESSOR]), professorRateLimiter, async(req, res) => {
   try {
     const authToken = req.headers.authorization;
 
     const response = await axios.get(`http://localhost:5003/api/students/${req.params.student_id}`, 
       { headers: { Authorization: authToken } });
-
-      res.json({
+      professorLogger.info(`Fetched student data for student ID: ${req.params.student_id}`);
+      res.status(200).json({
         message: "Student data fetched successfully",
         studentData: response.data
       })
   }catch (error) {
     console.error("Error fetching student data:", error);
     res.status(500).json({ message: "Unable to fetch student data" });
+    professorLogger.error(`Error fetching student data for student ID: ${req.params.student_id}`);
   }
 });
 

@@ -106,7 +106,7 @@ function verifyRole(requiredRoles) {
 
 const jwtRateLimiter = rateLimit({
 	windowMs: 60 * 1000, // 1 minute
-	max: 10, // Limit each IP to 200 requests per windowMs
+	max: 10, // Limit each IP to 10 requests per windowMs
 	message:
 		"Too many authentication requests from this IP, please try again later.",
 	headers: true,
