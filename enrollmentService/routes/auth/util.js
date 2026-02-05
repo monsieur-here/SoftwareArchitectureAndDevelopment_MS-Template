@@ -5,7 +5,8 @@ const fs = require("fs");
 const path = require("path");
 
 const { ROLES, STUDENT_SERVICE, COURSE_SERVICE } = require("../../../consts");
-// const { getCorrelationId } = require("../../../correlationId");
+const { getCorrelationId } = require("../../../correlationId");
+const rateLimit = require("express-rate-limit");
 
 dotenv.config();
 
@@ -13,8 +14,8 @@ const axiosInstance = axios.create();
 
 axiosInstance.interceptors.request.use(
   (config) => {
-    // const correlationId = getCorrelationId(); // Retrieve the correlation ID
-    // config.headers["x-correlation-id"] = correlationId; // Add it to the headers
+    //const correlationId = getCorrelationId(); // Retrieve the correlation ID
+    //config.headers["x-correlation-id"] = correlationId; // Add it to the headers
     return config;
   },
   (error) => {
@@ -45,7 +46,11 @@ const publicKey = fs.readFileSync(
  * @returns {Promise<Array>} - A promise that resolves to the JWKS keys.
  */
 async function fetchJWKS(jku) {
-  const response = await axios.get(jku);
+  const response = await axios.get(jku, {
+    headers: {
+      "x-correlation-id": getCorrelationId(),
+    },
+    });
   return response.data.keys;
 }
 
@@ -146,7 +151,9 @@ async function fetchStudents() {
   const response = await axios.get(`${STUDENT_SERVICE}`, {
     headers: {
       Authorization: `Bearer ${token}`,
+      "x-correlation-id": getCorrelationId(),
     },
+    timeout: 3000,
   });
   return response.data;
 }
@@ -159,10 +166,22 @@ async function fetchCourses() {
   const response = await axios.get(`${COURSE_SERVICE}`, {
     headers: {
       Authorization: `Bearer ${token}`,
+      "x-correlation-id": getCorrelationId(),
     },
   });
   return response.data;
 }
+
+const enrollmentLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // Limit each IP to 10 requests per window
+  message: {
+    message: "Too many enrollment attempts from this IP, please try again later",
+    correlationId: getCorrelationId() // Always include your trace ID!
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 function restrictStudentToOwnData(req, res, next) {
   if (req.user.roles.includes(ROLES.STUDENT) && req.user.id !== req.params.id) {
@@ -179,4 +198,5 @@ module.exports = {
   restrictStudentToOwnData,
   fetchStudents,
   fetchCourses,
+  enrollmentLimiter,
 };

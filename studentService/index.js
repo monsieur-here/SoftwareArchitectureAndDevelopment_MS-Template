@@ -26,5 +26,5 @@ app.use("/api/students", studentRoutes);
 
 const PORT = process.env.PORT || 5003;
 app.listen(PORT, () => {
-    console.log(`Student Service is running on port ${PORT}`);
-})
+	console.log(`Student Service is running on port ${PORT}`);
+});
